@@ -1,9 +1,13 @@
 import discord
 import json
 from discord.ext import commands
-import asyncio
+# import asyncio
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
+import yt_dlp
+import asyncio
+import os
+# import yt_dlp
 
 
 # config
@@ -12,6 +16,11 @@ config = json.load(file)
 intents = discord.Intents.all()
 intents.messages = True
 bot = commands.Bot(config['prefix'], intents=intents)
+
+
+@bot.event
+async def on_ready():
+    print(f'{bot.user} has connected to Discord!')
 
 
 @bot.command(name='ping')
@@ -130,5 +139,65 @@ async def generate_image(ctx, *, text):
     # Send the image to the Discord channel
     await ctx.send(file=discord.File(image_path))
     print(f"genimgtest by: {ctx.author.mention}")
+
+
+queued_tracks = []
+currently_playing = None  # Initialize currently_playing to None
+
+
+@bot.command(name='play')
+async def play(ctx, url):
+    global currently_playing  # Declare currently_playing as global
+    voice_client = ctx.voice_client
+    if not voice_client:
+        voice_channel = ctx.author.voice.channel
+        if voice_channel is None:
+            return await ctx.send("You need to be in a voice channel to play music!")
+        await voice_channel.connect()
+        voice_client = ctx.voice_client
+
+    # Clean up previously downloaded file
+    if currently_playing:
+        if hasattr(currently_playing, 'filename') and os.path.exists(currently_playing.filename):
+            os.remove(currently_playing.filename)
+        currently_playing = None
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': '%(title)s.%(ext)s',  # Use a unique filename for each track
+        'verbose': True,
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        try:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+            source = discord.FFmpegPCMAudio(filename)
+            if voice_client.is_playing():
+                voice_client.stop()
+            voice_client.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(delete_and_play_next(ctx, voice_client, source), bot.loop))
+            await ctx.send(f"Now playing: {info.get('title', url)}")
+            currently_playing = source
+        except yt_dlp.utils.DownloadError as e:
+            print(e)
+            await ctx.send(f"Error: {e}")
+
+
+async def delete_and_play_next(ctx, voice_client, source):
+    try:
+        os.remove(source.filename)
+    except Exception as e:
+        print(f"Error deleting file: {e}")
+    global currently_playing  # Declare currently_playing as global
+    currently_playing = None
+
+
+@bot.command(name='skip')
+async def skip(ctx):
+    voice_client = ctx.voice_client
+    if voice_client and voice_client.is_playing():
+        voice_client.stop()
+        await play(ctx, voice_client)
+    else:
+        await ctx.send("No audio is currently playing.")
 # run bot
 bot.run(config['token'])
