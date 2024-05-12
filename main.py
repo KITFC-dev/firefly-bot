@@ -21,7 +21,7 @@ async def ping(ctx):
 
 
 @bot.command(name='foo')
-async def ping(ctx: commands.context):
+async def foo(ctx: commands.context):
     await ctx.send(embed=discord.Embed(title=f'{ctx.message.content}'))
     print(f"foo by: {ctx.author.mention}")
 
