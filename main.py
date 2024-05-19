@@ -23,6 +23,7 @@ bot = commands.Bot(config['prefix'], intents=intents)
 @bot.event
 async def on_ready():
     print(f'{bot.user} has connected to Discord!')
+    await bot.tree.sync()
 
 
 @bot.command(name='ping', help='Ping bot')
@@ -32,8 +33,8 @@ async def ping(ctx):
 
 
 @bot.command(name='foo', help='Repeat your message in chat\n\nArguments:\nmessage: message to be repeated')
-async def foo(ctx: commands.context):
-    await ctx.send(embed=discord.Embed(title=f'{ctx.message.content}'))
+async def foo(ctx: commands.context, *, message: str):
+    await ctx.send(embed=discord.Embed(title=message))
     print(f"foo by: {ctx.author.mention}")
 
 
@@ -224,37 +225,65 @@ async def skip(ctx):
             print(f"Error while skipping song: {e}")
             await ctx.send(f"DEBUG: {e}")
     else:
-        await ctx.send("No audio is currently playing.")    
+        await ctx.send("No audio is currently playing.")
 
 
 # Command to ban a member
 @bot.command(name='banf', help='Ban user from server\n\nArguments:\nmember Member to be banned\n reason Reason of ban')
 async def ban(ctx, member: discord.Member, *, reason=None):
-    await member.ban(reason=reason)
-    await ctx.send(f'Banned: {member.mention}')
+    try:
+        await member.ban(reason=reason)
+        await ctx.send(f'Banned: {member.mention}')
+    except Exception as e:
+        print(f"Error while banning user, error {e}")
+        await ctx.send(f'Error while banning user, error {e}')
+    except:
+        print(f"Error while banning user, error")
+        await ctx.send(f'Error while banning user, error')
 
 
 # Command to mute a member
 @bot.command(name='mutef', help='Mute user\n\nArguments:\nmember Member to be muted')
 async def mute(ctx, member: discord.Member):
     muted_role = discord.utils.get(ctx.guild.roles, name="Muted")  # Ensure you have a role named "Muted"
-    await member.add_roles(muted_role)
-    await ctx.send(f'Muted: {member.mention}')
+    try:
+        await member.add_roles(muted_role)
+        await ctx.send(f'Muted: {member.mention}')
+    except Exception as e:
+        print(f"Error while muting user, error {e}")
+        await ctx.send(f'Error while muting user, error {e}')
+    except:
+        print(f"Error while muting user, error")
+        await ctx.send(f'Error while muting user, error')
 
 
 # Command to kick a member
 @bot.command(name='kickf', help='Kick user from server\n\nArguments:\nmember Member to be kicked\nreason Reason of Kicking')
 async def kick(ctx, member: discord.Member, *, reason=None):
-    await member.kick(reason=reason)
-    await ctx.send(f'Kicked: {member.mention}')
+    try:
+        await member.kick(reason=reason)
+        await ctx.send(f'Kicked: {member.mention}')
+    except Exception as e:
+        print(f"Error while kicking user, error {e}")
+        await ctx.send(f'Error while kicking user, error {e}')
+    except:
+        print(f"Error while kicking user, error")
+        await ctx.send(f'Error while kicking user, error')
 
 
 # Command to unmute a member
 @bot.command(name='unmutef', help='Unmute a user\n\nArguments:\nmember Member to be unmuted')
 async def unmute(ctx, member: discord.Member):
     muted_role = discord.utils.get(ctx.guild.roles, name="Muted")  # Ensure you have a role named "Muted"
-    await member.remove_roles(muted_role)
-    await ctx.send(f'{member.mention} has been unmuted.')
+    try:
+        await member.remove_roles(muted_role)
+        await ctx.send(f'{member.mention} has been unmuted.')
+    except Exception as e:
+        print(f"Error while unmuting user, error {e}")
+        await ctx.send(f'Error while unmuting user, error {e}')
+    except:
+        print(f"Error while unmuting user, error")
+        await ctx.send(f'Error while unmuting user, error')
 
 
 # Command to unban a member
@@ -262,20 +291,45 @@ async def unmute(ctx, member: discord.Member):
 async def unban(ctx, *, member):
     banned_users = await ctx.guild.fetch_bans()
     member_name, member_discriminator = member.split('#')
+    try:
+        for ban_entry in banned_users:
+            user = ban_entry.user
 
-    for ban_entry in banned_users:
-        user = ban_entry.user
-
-        if (user.name, user.discriminator) == (member_name, member_discriminator):
-            await ctx.guild.unban(user)
-            await ctx.send(f'{user.mention} has been unbanned.')
-            return
+            if (user.name, user.discriminator) == (member_name, member_discriminator):
+                await ctx.guild.unban(user)
+                await ctx.send(f'{user.mention} has been unbanned.')
+                return
+    except Exception as e:
+        print(f"Error while unbanning user, error {e}")
+        await ctx.send(f'Error while unbanning user, error {e}')
+    except:
+        print(f"Error while unbanning user, error")
+        await ctx.send(f'Error while unbanning user, error')
 
     await ctx.send(f'Could not find {member} in the ban list.')
 
 
+@bot.command(name='purge', help='Deletes amount of messages from channel\n\nArguments:\namount Amount of messages to be deleted')
+@commands.has_permissions(manage_messages=True)
+async def purge(ctx, amount: int):
+    """Deletes a specified number of messages from the current channel."""
+    try:
+        deleted = await ctx.channel.purge(limit=amount + 1)
+        deleted_messages = len(deleted) - 1  # Exclude the command message
+        await ctx.send(f"Deleted {deleted_messages} message(s).", delete_after=5)
+    except discord.HTTPException as error:
+        if error.code == 50034:
+            await ctx.send("Cannot delete messages older than 14 days.", delete_after=5)
+        else:
+            await ctx.send(f"An error occurred: {error}", delete_after=5)
 
 
+@purge.error
+async def purge_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You do not have permission to use this command.", delete_after=5)
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send("Please provide a valid number of messages to delete.", delete_after=5)
 
 # run bot
 bot.run(config['token'])

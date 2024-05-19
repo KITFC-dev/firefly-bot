@@ -16,6 +16,7 @@ Commands
 10. skip      - Skip current playing song
 11. unbanf    - Unban user
 12. unmutef   - Unmute a user
+13. purge     - Deletes amount of messages from channel
 
 Credits
 -------
