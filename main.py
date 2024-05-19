@@ -7,6 +7,8 @@ import textwrap
 import yt_dlp
 import asyncio
 import os
+import glob
+
 # import yt_dlp
 
 
@@ -23,13 +25,13 @@ async def on_ready():
     print(f'{bot.user} has connected to Discord!')
 
 
-@bot.command(name='ping')
+@bot.command(name='ping', help='Ping bot')
 async def ping(ctx):
     await ctx.send(f'{ctx.author.mention} pong!')
     print(f"ping by: {ctx.author.mention}")
 
 
-@bot.command(name='foo')
+@bot.command(name='foo', help='Repeat your message in chat\n\nArguments:\nmessage: message to be repeated')
 async def foo(ctx: commands.context):
     await ctx.send(embed=discord.Embed(title=f'{ctx.message.content}'))
     print(f"foo by: {ctx.author.mention}")
@@ -76,7 +78,7 @@ async def on_member_join(member):
     print(f"welcomed user")
 
 
-@bot.command(name='poll')
+@bot.command(name='poll', help='Poll in chat\n\nArguments:\nquestion Question in poll.\noptions Options to be selected (up to five)')
 async def poll(ctx, question, *options):
     if len(options) < 2:
         error_msg2 = await ctx.send("You need to provide at least two options.")
@@ -84,7 +86,7 @@ async def poll(ctx, question, *options):
         await error_msg2.delete()
         await ctx.message.delete()  # Delete the original command message
         return
-    
+
     if len(options) > 5:
         error_msg5 = await ctx.send("You can provide up to five options.")
         await asyncio.sleep(5)
@@ -92,7 +94,7 @@ async def poll(ctx, question, *options):
         await ctx.message.delete
         return
 
-    options_text = "\n".join([f"{index+1}. {option}" for index, option in enumerate(options)])
+    options_text = "\n".join([f"{index + 1}. {option}" for index, option in enumerate(options)])
     poll_message = await ctx.send(f"{question}\n{options_text}")
     print(f"poll by: {ctx.author.mention}")
     emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣']
@@ -104,10 +106,10 @@ async def poll(ctx, question, *options):
 async def generate_image(ctx, *, text):
     # Open the background image
     background_image = Image.open("background.jpg")
-    
+
     # Resize the background image to fit the desired dimensions
     background_image = background_image.resize((900, 400))
-    
+
     # Create a new image with the background image
     image = Image.new("RGB", background_image.size)
     image.paste(background_image)
@@ -141,11 +143,15 @@ async def generate_image(ctx, *, text):
     print(f"genimgtest by: {ctx.author.mention}")
 
 
+current_file_path = os.path.dirname(os.path.abspath(__file__))
+song_dir = os.path.join(current_file_path, 'songs')
+os.makedirs(song_dir, exist_ok=True)
+
 queued_tracks = []
 currently_playing = None  # Initialize currently_playing to None
 
 
-@bot.command(name='play')
+@bot.command(name='play', help='Play song in voice chat\n\nArguments:\nurl YouTube URL to video that will be played in voice chat')
 async def play(ctx, url):
     global currently_playing  # Declare currently_playing as global
     voice_client = ctx.voice_client
@@ -156,14 +162,25 @@ async def play(ctx, url):
         await voice_channel.connect()
         voice_client = ctx.voice_client
 
+    # Clear all .m4a files from the songs directory, except the currently playing file
+    m4a_files = glob.glob(os.path.join(song_dir, '*.webm'))
+    try:
+        for m4a_file in m4a_files:
+            if currently_playing == m4a_file:
+                continue
+            os.remove(m4a_file)
+    except Exception as e:
+        print(f"{e}")
+
     # Clean up previously downloaded file
     if currently_playing:
         if hasattr(currently_playing, 'filename') and os.path.exists(currently_playing.filename):
             os.remove(currently_playing.filename)
         currently_playing = None
+
     ydl_opts = {
         'format': 'bestaudio/best',
-        'outtmpl': '%(title)s.%(ext)s',  # Use a unique filename for each track
+        'outtmpl': os.path.join(song_dir, '%(title)s.%(ext)s'),  # Use a unique filename for each track
         'verbose': True,
     }
 
@@ -174,7 +191,8 @@ async def play(ctx, url):
             source = discord.FFmpegPCMAudio(filename)
             if voice_client.is_playing():
                 voice_client.stop()
-            voice_client.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(delete_and_play_next(ctx, voice_client, source), bot.loop))
+            voice_client.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(
+                delete_and_play_next(ctx, voice_client, source), bot.loop))
             await ctx.send(f"Now playing: {info.get('title', url)}")
             currently_playing = source
         except yt_dlp.utils.DownloadError as e:
@@ -184,20 +202,80 @@ async def play(ctx, url):
 
 async def delete_and_play_next(ctx, voice_client, source):
     try:
-        os.remove(source.filename)
+        if hasattr(source, 'info') and 'title' in source.info:
+            filename = os.path.join(song_dir, f"{source.info['title']}.{source.info['ext']}")
+            if os.path.exists(filename):
+                os.remove(filename)
     except Exception as e:
         print(f"Error deleting file: {e}")
-    global currently_playing  # Declare currently_playing as global
+    global currently_playing
     currently_playing = None
 
 
-@bot.command(name='skip')
+@bot.command(name='skip', help='Skip current playing song')
 async def skip(ctx):
+    print(f"current song skipped by: {ctx.author.mention}")
     voice_client = ctx.voice_client
     if voice_client and voice_client.is_playing():
         voice_client.stop()
-        await play(ctx, voice_client)
+        try:
+            await play(ctx, voice_client)
+        except Exception as e:
+            print(f"Error while skipping song: {e}")
+            await ctx.send(f"DEBUG: {e}")
     else:
-        await ctx.send("No audio is currently playing.")
+        await ctx.send("No audio is currently playing.")    
+
+
+# Command to ban a member
+@bot.command(name='banf', help='Ban user from server\n\nArguments:\nmember Member to be banned\n reason Reason of ban')
+async def ban(ctx, member: discord.Member, *, reason=None):
+    await member.ban(reason=reason)
+    await ctx.send(f'Banned: {member.mention}')
+
+
+# Command to mute a member
+@bot.command(name='mutef', help='Mute user\n\nArguments:\nmember Member to be muted')
+async def mute(ctx, member: discord.Member):
+    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")  # Ensure you have a role named "Muted"
+    await member.add_roles(muted_role)
+    await ctx.send(f'Muted: {member.mention}')
+
+
+# Command to kick a member
+@bot.command(name='kickf', help='Kick user from server\n\nArguments:\nmember Member to be kicked\nreason Reason of Kicking')
+async def kick(ctx, member: discord.Member, *, reason=None):
+    await member.kick(reason=reason)
+    await ctx.send(f'Kicked: {member.mention}')
+
+
+# Command to unmute a member
+@bot.command(name='unmutef', help='Unmute a user\n\nArguments:\nmember Member to be unmuted')
+async def unmute(ctx, member: discord.Member):
+    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")  # Ensure you have a role named "Muted"
+    await member.remove_roles(muted_role)
+    await ctx.send(f'{member.mention} has been unmuted.')
+
+
+# Command to unban a member
+@bot.command(name='unbanf', help='Unban user\n\nArguments:\nmember Member to be unbanned')
+async def unban(ctx, *, member):
+    banned_users = await ctx.guild.fetch_bans()
+    member_name, member_discriminator = member.split('#')
+
+    for ban_entry in banned_users:
+        user = ban_entry.user
+
+        if (user.name, user.discriminator) == (member_name, member_discriminator):
+            await ctx.guild.unban(user)
+            await ctx.send(f'{user.mention} has been unbanned.')
+            return
+
+    await ctx.send(f'Could not find {member} in the ban list.')
+
+
+
+
+
 # run bot
 bot.run(config['token'])
