@@ -153,6 +153,7 @@ currently_playing = None  # Initialize currently_playing to None
 
 
 @bot.command(name='play', help='Play song in voice chat\n\nArguments:\nurl YouTube URL to video that will be played in voice chat')
+@commands.has_any_role('Moderator', 'Admin', 'Music')
 async def play(ctx, url):
     global currently_playing  # Declare currently_playing as global
     voice_client = ctx.voice_client
@@ -214,6 +215,7 @@ async def delete_and_play_next(ctx, voice_client, source):
 
 
 @bot.command(name='skip', help='Skip current playing song')
+@commands.has_any_role('Moderator', 'Admin', 'Music')
 async def skip(ctx):
     print(f"current song skipped by: {ctx.author.mention}")
     voice_client = ctx.voice_client
@@ -229,7 +231,8 @@ async def skip(ctx):
 
 
 # Command to ban a member
-@bot.command(name='banf', help='Ban user from server\n\nArguments:\nmember Member to be banned\n reason Reason of ban')
+@bot.command(name='ban', help='Ban user from server\n\nArguments:\nmember Member to be banned\n reason Reason of ban')
+@commands.has_any_role('Moderator', 'Admin')
 async def ban(ctx, member: discord.Member, *, reason=None):
     try:
         await member.ban(reason=reason)
@@ -243,7 +246,8 @@ async def ban(ctx, member: discord.Member, *, reason=None):
 
 
 # Command to mute a member
-@bot.command(name='mutef', help='Mute user\n\nArguments:\nmember Member to be muted')
+@bot.command(name='mute', help='Mute user\n\nArguments:\nmember Member to be muted')
+@commands.has_any_role('Moderator', 'Admin')
 async def mute(ctx, member: discord.Member):
     muted_role = discord.utils.get(ctx.guild.roles, name="Muted")  # Ensure you have a role named "Muted"
     try:
@@ -258,7 +262,8 @@ async def mute(ctx, member: discord.Member):
 
 
 # Command to kick a member
-@bot.command(name='kickf', help='Kick user from server\n\nArguments:\nmember Member to be kicked\nreason Reason of Kicking')
+@bot.command(name='kick', help='Kick user from server\n\nArguments:\nmember Member to be kicked\nreason Reason of Kicking')
+@commands.has_any_role('Moderator', 'Admin')
 async def kick(ctx, member: discord.Member, *, reason=None):
     try:
         await member.kick(reason=reason)
@@ -272,7 +277,8 @@ async def kick(ctx, member: discord.Member, *, reason=None):
 
 
 # Command to unmute a member
-@bot.command(name='unmutef', help='Unmute a user\n\nArguments:\nmember Member to be unmuted')
+@bot.command(name='unmute', help='Unmute a user\n\nArguments:\nmember Member to be unmuted')
+@commands.has_any_role('Moderator', 'Admin')
 async def unmute(ctx, member: discord.Member):
     muted_role = discord.utils.get(ctx.guild.roles, name="Muted")  # Ensure you have a role named "Muted"
     try:
@@ -287,7 +293,8 @@ async def unmute(ctx, member: discord.Member):
 
 
 # Command to unban a member
-@bot.command(name='unbanf', help='Unban user\n\nArguments:\nmember Member to be unbanned')
+@bot.command(name='unban', help='Unban user\n\nArguments:\nmember Member to be unbanned')
+@commands.has_any_role('Moderator', 'Admin')
 async def unban(ctx, *, member):
     banned_users = await ctx.guild.fetch_bans()
     member_name, member_discriminator = member.split('#')
